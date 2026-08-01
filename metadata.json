@@ -1,0 +1,6 @@
+{
+  "name": "مدير الملفات - File Master",
+  "description": "تطبيق متكامل لإدارة ملفات الجهاز، فتح وتعديل ملفات Excel والملفات النصية، الاتصال بسيرفرات FTP، التعديل السحابي، المزامنة، والتشفير الآمن AES-256.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
