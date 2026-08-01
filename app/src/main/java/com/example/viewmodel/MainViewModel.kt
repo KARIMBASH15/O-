@@ -175,14 +175,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun navigateUp(): Boolean {
-        val parent = _currentDir.value.parentFile
-        val baseDir = LocalFileManager.getDefaultBaseDir(getApplication())
-        if (parent != null && _currentDir.value.absolutePath != baseDir.parentFile?.absolutePath) {
+        val current = _currentDir.value
+        val parent = current.parentFile
+        if (parent != null && parent.canRead() && current.absolutePath != "/" && current.absolutePath != "/storage") {
             _currentDir.value = parent
             refreshFiles()
             return true
         }
         return false
+    }
+
+    fun resetToBaseDir() {
+        val baseDir = LocalFileManager.getDefaultBaseDir(getApplication())
+        _currentDir.value = baseDir
+        refreshFiles()
+        refreshStorageStats()
     }
 
     fun refreshFiles() {

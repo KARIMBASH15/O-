@@ -1,10 +1,20 @@
 package com.example
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,9 +22,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.file.FileItem
@@ -28,6 +43,17 @@ import com.example.ui.theme.VaultAmber
 import com.example.viewmodel.MainViewModel
 import com.example.viewmodel.UiMessage
 import java.io.File
+
+fun checkHasStoragePermission(context: Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+    } else {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,6 +115,74 @@ fun FileMasterApp(viewModel: MainViewModel = viewModel()) {
     var showZipDialog by remember { mutableStateOf(false) }
     var showDetailsDialogForFile by remember { mutableStateOf<FileItem?>(null) }
     var renameFileTarget by remember { mutableStateOf<FileItem?>(null) }
+
+    val context = LocalContext.current
+    var hasStoragePermission by remember { mutableStateOf(checkHasStoragePermission(context)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        val granted = checkHasStoragePermission(context)
+        hasStoragePermission = granted
+        if (granted) {
+            viewModel.resetToBaseDir()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasStoragePermission) {
+            val permissionsToRequest = mutableListOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add(Manifest.permission.READ_MEDIA_IMAGES)
+                    add(Manifest.permission.READ_MEDIA_VIDEO)
+                    add(Manifest.permission.READ_MEDIA_AUDIO)
+                }
+            }.toTypedArray()
+            permissionLauncher.launch(permissionsToRequest)
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val granted = checkHasStoragePermission(context)
+                if (granted != hasStoragePermission) {
+                    hasStoragePermission = granted
+                    if (granted) {
+                        viewModel.resetToBaseDir()
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    fun requestFullStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                context.startActivity(intent)
+            }
+        } else {
+            val permissionsToRequest = arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+            permissionLauncher.launch(permissionsToRequest)
+        }
+    }
 
     val baseDir = remember(currentDir) {
         val app = viewModel.getApplication<android.app.Application>()
@@ -215,11 +309,52 @@ fun FileMasterApp(viewModel: MainViewModel = viewModel()) {
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            if (!hasStoragePermission) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "مطلوب إذن الوصول لذاكرة الجهاز 📁",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "انقر لإعطاء التطبيق إذن الوصول لجميع الملفات والمجلدات.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { requestFullStoragePermission() },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("منح الصلاحية", color = MaterialTheme.colorScheme.onError, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
             when (currentScreen) {
                 AppScreen.HOME -> HomeScreen(
                     storageStats = storageStats,
@@ -372,6 +507,7 @@ fun FileMasterApp(viewModel: MainViewModel = viewModel()) {
                 }
             }
         }
+    }
     }
 
     // Active Dialogs

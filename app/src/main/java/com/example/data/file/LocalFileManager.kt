@@ -21,6 +21,14 @@ data class StorageStats(
 object LocalFileManager {
 
     fun getDefaultBaseDir(context: Context): File {
+        val sdCard = Environment.getExternalStorageDirectory()
+        if (sdCard != null && sdCard.exists()) {
+            return sdCard
+        }
+        val storageRoot = File("/storage/emulated/0")
+        if (storageRoot.exists()) {
+            return storageRoot
+        }
         val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
         val dir = externalDocs ?: File(context.filesDir, "Documents")
         if (!dir.exists()) dir.mkdirs()
@@ -29,79 +37,83 @@ object LocalFileManager {
 
     suspend fun ensureSampleFiles(context: Context): File = withContext(Dispatchers.IO) {
         val baseDir = getDefaultBaseDir(context)
-        val excelDir = File(baseDir, "جدول_المستندات")
-        if (!excelDir.exists()) excelDir.mkdirs()
+        try {
+            val excelDir = File(baseDir, "جدول_المستندات")
+            if (!excelDir.exists()) excelDir.mkdirs()
 
-        // 1. Sample Excel / CSV
-        val sampleCsv = File(excelDir, "الميزانية_السنوية.csv")
-        if (!sampleCsv.exists()) {
-            val csvContent = """
-                البند,الربع الأول,الربع الثاني,الربع الثالث,الربع الرابع,الإجمالي
-                المبيعات,15000,18500,21000,26000,80500
-                التسويق,3000,3500,4000,4500,15000
-                التطوير,8000,8000,9000,9000,34000
-                الرواتب,12000,12000,12000,12000,48000
-                الربح الصافي,2000,5000,6000,9500,22500
-            """.trimIndent()
-            sampleCsv.writeText(csvContent, Charsets.UTF_8)
-        }
+            // 1. Sample Excel / CSV
+            val sampleCsv = File(excelDir, "الميزانية_السنوية.csv")
+            if (!sampleCsv.exists()) {
+                val csvContent = """
+                    البند,الربع الأول,الربع الثاني,الربع الثالث,الربع الرابع,الإجمالي
+                    المبيعات,15000,18500,21000,26000,80500
+                    التسويق,3000,3500,4000,4500,15000
+                    التطوير,8000,8000,9000,9000,34000
+                    الرواتب,12000,12000,12000,12000,48000
+                    الربح الصافي,2000,5000,6000,9500,22500
+                """.trimIndent()
+                sampleCsv.writeText(csvContent, Charsets.UTF_8)
+            }
 
-        val sampleXlsx = File(excelDir, "قائمة_العملاء_والمشتريات.csv")
-        if (!sampleXlsx.exists()) {
-            val xlsxContent = """
-                اسم العملاء,المنتج,الكمية,سعر الوحدة,المبلغ الكلي,الحالة
-                شركة الأمل,سيرفر cloud,2,1200,2400,مكتمل
-                مؤسسة النور,رخصة برنامج,5,350,1750,مكتمل
-                مكتب التقنية,تجهيزات شبكات,1,850,850,قيد المعالجة
-                مختبر الحلول,استشارات FTP,3,500,1500,مكتمل
-            """.trimIndent()
-            sampleXlsx.writeText(xlsxContent, Charsets.UTF_8)
-        }
+            val sampleXlsx = File(excelDir, "قائمة_العملاء_والمشتريات.csv")
+            if (!sampleXlsx.exists()) {
+                val xlsxContent = """
+                    اسم العملاء,المنتج,الكمية,سعر الوحدة,المبلغ الكلي,الحالة
+                    شركة الأمل,سيرفر cloud,2,1200,2400,مكتمل
+                    مؤسسة النور,رخصة برنامج,5,350,1750,مكتمل
+                    مكتب التقنية,تجهيزات شبكات,1,850,850,قيد المعالجة
+                    مختبر الحلول,استشارات FTP,3,500,1500,مكتمل
+                """.trimIndent()
+                sampleXlsx.writeText(xlsxContent, Charsets.UTF_8)
+            }
 
-        // 2. Sample Text & Code files
-        val textDir = File(baseDir, "الملفات_النصية")
-        if (!textDir.exists()) textDir.mkdirs()
+            // 2. Sample Text & Code files
+            val textDir = File(baseDir, "الملفات_النصية")
+            if (!textDir.exists()) textDir.mkdirs()
 
-        val notesFile = File(textDir, "ملاحظات_المشروع.txt")
-        if (!notesFile.exists()) {
-            notesFile.writeText(
-                """
-                === دليل تطبيق إدارة الملفات والتعديل السحابي ===
-                1. فتح وتعديل ملفات Excel و CSV مباشرة في التطبيق.
-                2. الاتصال بسيرفرات FTP للتصفح والتعديل السحابي المباشر.
-                3. التشفير الآمن للملفات باستخدام خوارزمية AES-256.
-                4. المزامنة التلقائية بين مجلدات الجهاز وسيرفر FTP.
-                """.trimIndent(),
-                Charsets.UTF_8
-            )
-        }
+            val notesFile = File(textDir, "ملاحظات_المشروع.txt")
+            if (!notesFile.exists()) {
+                notesFile.writeText(
+                    """
+                    === دليل تطبيق إدارة الملفات والتعديل السحابي ===
+                    1. فتح وتعديل ملفات Excel و CSV مباشرة في التطبيق.
+                    2. الاتصال بسيرفرات FTP للتصفح والتعديل السحابي المباشر.
+                    3. التشفير الآمن للملفات باستخدام خوارزمية AES-256.
+                    4. المزامنة التلقائية بين مجلدات الجهاز وسيرفر FTP.
+                    """.trimIndent(),
+                    Charsets.UTF_8
+                )
+            }
 
-        val configFile = File(textDir, "إعدادات_المزامنة.json")
-        if (!configFile.exists()) {
-            configFile.writeText(
-                """
-                {
-                  "appName": "FileMaster",
-                  "version": "1.0.0",
-                  "syncIntervalMinutes": 15,
-                  "encryption": "AES-256-CBC",
-                  "defaultFtpPort": 21
-                }
-                """.trimIndent(),
-                Charsets.UTF_8
-            )
-        }
+            val configFile = File(textDir, "إعدادات_المزامنة.json")
+            if (!configFile.exists()) {
+                configFile.writeText(
+                    """
+                    {
+                      "appName": "FileMaster",
+                      "version": "1.0.0",
+                      "syncIntervalMinutes": 15,
+                      "encryption": "AES-256-CBC",
+                      "defaultFtpPort": 21
+                    }
+                    """.trimIndent(),
+                    Charsets.UTF_8
+                )
+            }
 
-        // 3. Sample Encrypted Vault
-        val vaultDir = File(baseDir, "المخزن_المشفر")
-        if (!vaultDir.exists()) vaultDir.mkdirs()
+            // 3. Sample Encrypted Vault
+            val vaultDir = File(baseDir, "المخزن_المشفر")
+            if (!vaultDir.exists()) vaultDir.mkdirs()
 
-        val sampleSecret = File(vaultDir, "مستندات_سرية.enc")
-        if (!sampleSecret.exists()) {
-            val tempSecret = File(vaultDir, "temp_secret.txt")
-            tempSecret.writeText("هذا نص سري مشفر بحماية عالية AES-256 لا يمكن فتحه إلا بكلمة المرور 1234", Charsets.UTF_8)
-            EncryptionEngine.encryptFile(tempSecret, sampleSecret, "1234")
-            tempSecret.delete()
+            val sampleSecret = File(vaultDir, "مستندات_سرية.enc")
+            if (!sampleSecret.exists()) {
+                val tempSecret = File(vaultDir, "temp_secret.txt")
+                tempSecret.writeText("هذا نص سري مشفر بحماية عالية AES-256 لا يمكن فتحه إلا بكلمة المرور 1234", Charsets.UTF_8)
+                EncryptionEngine.encryptFile(tempSecret, sampleSecret, "1234")
+                tempSecret.delete()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         baseDir
